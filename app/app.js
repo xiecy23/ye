@@ -509,6 +509,13 @@
     box.innerHTML = '';
     const st = Log.load();
 
+    // 本周完成度放在最上面 —— 这是 Keep 那种"单一闭环数字"的位置，
+    // 也是每次训练必看的第一条。
+    // 必须放在 innerHTML='' 之后，否则会被清掉。
+    if (typeof Progress !== 'undefined' && Progress.mountInto) {
+      try { Progress.mountInto(box); } catch (e) { /* 绝不因装饰性组件失败而影响出计划 */ }
+    }
+
     if (!st.goal) {
       box.appendChild(el('div', 'empty',
         '还没有目标。先去「目标」页花 1 分钟定一个，计划会自动生成。'));

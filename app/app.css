@@ -9,7 +9,14 @@
   --border: #2a2f3a;
   --text: #e8eaed;
   --text-dim: #9aa3b2;
-  --text-faint: #6b7480;
+  /* text-faint 原为 #6b7480。WCAG 2.1 实测：
+     在 --bg 上 3.99:1、--surface 上 3.68:1、--surface-2 上 3.32:1，
+     三种底色全部低于 AA 要求的 4.5:1。这是全站辅助文字（header 副标题、
+     .hint、.score、.empty、placeholder）的唯一颜色，影响面是全站。
+     改为 #8b94a1 后最差底色达 5.13:1。
+     其余颜色实测均达标：--text 13.05、--text-dim 6.18、--ok 8.90、
+     --warn 10.23、--danger 5.67、--accent 5.78。 */
+  --text-faint: #8b94a1;
   --ok: #3ddc97;
   --ok-bg: rgba(61, 220, 151, .12);
   --warn: #ffc857;

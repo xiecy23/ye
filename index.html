@@ -2,7 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<!-- 允许用户缩放：maximum-scale=1 会阻止放大，是 WCAG 1.4.4 的明确失败项。
+     部分老设备 Safari 在 user-scalable=no 下完全无法缩放。 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -153,7 +155,7 @@
 
 <!-- 加载兜底：脚本全挂在 CDN 之外的本地文件上，若因 Service Worker 未装上
      或被浏览器清除而加载失败，不能让用户面对白屏。 -->
-<div id="bootFail" hidden>
+<div id="bootFail" hidden role="alert" aria-live="assertive">
   <div class="empty" style="padding-top:40px">
     <div style="font-size:34px;margin-bottom:10px">📴</div>
     <h2 style="font-size:17px;color:var(--text)">页面没能加载出来</h2>
@@ -185,6 +187,13 @@
 <script src="app/safety.js"></script>
 <script src="app/data-machines.js"></script>
 <script src="app/data-exercises.js"></script>
+<script src="data/machines-extra.js"></script>
+<script src="data/exercises-extra.js"></script>
+<!-- 合并增量数据。必须在此刻执行：id-alias/safety 已加载但它们的归一化
+     与打标记发生在 app.js 的 boot() 里，拼接放在 boot 之前即可。
+     单独一行而不是内联拼接，是为了让 sw.js 的缓存清单与加载顺序一目了然。 -->
+<script>window.MACHINES = MACHINES.concat(MACHINES_EXTRA);</script>
+<script>window.EXERCISES = EXERCISES.concat(EXERCISES_EXTRA);</script>
 <script src="app/goal.js"></script>
 <script src="app/log.js"></script>
 <script src="app/assess.js"></script>
@@ -192,6 +201,9 @@
 <script src="app/evidence.js"></script>
 <script src="app/recognize.js"></script>
 <script src="app/api.js"></script>
+<script src="app/ux.js"></script>
+<script src="app/onboarding.js"></script>
+<script src="app/progress.js"></script>
 <script src="app/app.js"></script>
 </body>
 </html>
