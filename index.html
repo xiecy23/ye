@@ -115,8 +115,20 @@
     <div id="reactOut" class="mt"></div>
 
     <hr>
+    <h3>我现在的状态</h3>
+    <p class="lead">这一块是根据你的训练记录自动算的，不是问你自己感觉。</p>
+    <div id="assessBox"></div>
+
+    <hr>
     <h3>训练记录</h3>
     <div id="logSummary"></div>
+    <details class="more">
+      <summary>参数依据（哪些数字有文献支持，哪些是我的推断）</summary>
+      <div class="inner">
+        <p>这个项目里的每个训练参数都不是凭感觉来的，但也有一部分确实没有依据。这里全部标出来，你可以自己判断。</p>
+        <div id="evidenceBox"></div>
+      </div>
+    </details>
     <details class="more">
       <summary>导出/重置我的数据</summary>
       <div class="inner">
@@ -174,10 +186,12 @@
 <script src="app/data-machines.js"></script>
 <script src="app/data-exercises.js"></script>
 <script src="app/goal.js"></script>
+<script src="app/log.js"></script>
+<script src="app/assess.js"></script>
 <script src="app/plan.js"></script>
+<script src="app/evidence.js"></script>
 <script src="app/recognize.js"></script>
 <script src="app/api.js"></script>
-<script src="app/log.js"></script>
 <script src="app/app.js"></script>
 </body>
 </html>

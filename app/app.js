@@ -57,6 +57,7 @@
     renderGoal();
     renderPlan();
     renderLog();
+    renderAssess();
 
     // Service Worker：离线可用。file:// 下会失败，属预期，静默即可。
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
@@ -101,6 +102,8 @@
     if (page === 'goal') renderGoal();
     if (page === 'kit') renderTodayTour();
     if (page === 'react') renderLog();
+    if (page === 'react') renderAssess();
+    if (page === 'react') renderEvidence();
   }
 
   /* ====================================================================
@@ -538,8 +541,38 @@
       n.appendChild(el('span', null, d.isTraining ? '训练' : '休息'));
       row.appendChild(n);
     });
+
+    // 评估结论也要出现在计划页顶部 —— 那是每次训练必看的地方，
+    // 只放在反馈页等于没有。
+    const asr = Assess.evaluate(st);
+    const adj = Assess.applyIntensity(asr, ph.id);
+    if (asr.verdict === 'stop' || asr.verdict === 'retreat' || adj.changed) {
+      const w = el('div', 'card ' + (asr.verdict === 'stop' ? 'danger' : 'warn'));
+      w.style.marginTop = '10px';
+      w.appendChild(el('h3', null, '⚠ ' + esc(asr.headline)));
+      w.appendChild(el('p', 'mb0',
+        asr.verdict === 'stop'
+          ? '本课建议：立刻停止相关动作，不要加重量。详见「反馈」页。'
+          : '本课建议：降低一档强度。原因和依据见「反馈」页的「我现在的状态」。'));
+      tl.appendChild(w);
+    } else if (asr.verdict === 'advance') {
+      const w = el('div', 'card ok');
+      w.style.marginTop = '10px';
+      w.appendChild(el('h3', null, '✓ ' + esc(asr.headline)));
+      w.appendChild(el('p', 'mb0', '可以在「反馈」页按建议推进阶段。'));
+      tl.appendChild(w);
+    }
     tl.appendChild(row);
     box.appendChild(tl);
+
+    // 安全自检结果要显性展示，不藏在后台
+    if (week.adjusted) {
+      const an = el('div', 'card warn');
+      an.appendChild(el('h3', null, '强度已按你的记录自动下调'));
+      an.appendChild(el('div', 'mb0', esc(week.adjustNote || '')));
+      an.appendChild(el('div', 'hint mt', '依据和是否恢复见「反馈」页。调整只降不升——自动加量风险更大。'));
+      box.appendChild(an);
+    }
 
     // 安全自检结果要显性展示，不藏在后台
     const chk = el('div', 'card ' + (week.safetyCheck.ok ? 'ok' : 'danger'));
@@ -699,6 +732,8 @@
         Log.logExercise(t.ex.id, { kg: t.kg, sets: t.sets, reps: t.reps, pain: p.checked, compensation: cc.checked });
         toast(bad ? '已记录。看到痛/代偿了，去反馈页看怎么办' : '已记录');
         btn.remove(); cbPain.remove(); cbC.remove();
+        // 记录直接影响评估结论，必须立即重算
+        renderAssess(); renderLog();
       };
     });
     c.appendChild(btn);
@@ -741,6 +776,134 @@
     }
     box.appendChild(c);
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /* ====================================================================
+   * 表现评估：把训练日志变成一个能读懂的判断
+   * 替换掉原来"你点一下就+1"的设计。
+   * ==================================================================== */
+  function renderAssess() {
+    const box = $('#assessBox');
+    if (!box) return;
+    box.innerHTML = '';
+    const st = Log.load();
+
+    if (!st.goal) {
+      box.appendChild(el('div', 'hint', '先定目标，再有评估。'));
+      return;
+    }
+
+    const a = Assess.evaluate(st);
+    const cur = Goal.PHASES[st.phaseIndex];
+    const adj = Assess.applyIntensity(a, cur.id);
+
+    // 结论卡
+    const tone = { advance: 'ok', hold: 'accent', retreat: 'warn', stop: 'danger',
+                   complete: 'ok', stale: 'warn', insufficient: 'warn',
+                   no_data: 'plain', unknown: 'plain' }[a.verdict] || 'plain';
+    const card = el('div', 'card ' + tone);
+    card.appendChild(el('h3', null, esc(a.headline)));
+
+    // 依据行：让用户知道"这个结论是怎么来的"
+    if (a.sample > 0) {
+      const sp = el('div', 'specs');
+      sp.appendChild(el('span', 'spec', '最近 ' + a.sample + ' 次记录'));
+      if (a.metrics.clean != null) {
+        sp.appendChild(el('span', 'spec',
+          '干净 ' + a.metrics.clean + ' / ' + a.metrics.sample));
+      }
+      if (a.metrics.comp) sp.appendChild(el('span', 'spec', '代偿 ' + a.metrics.comp + ' 次'));
+      if (a.metrics.pain) sp.appendChild(el('span', 'spec', '疼痛 ' + a.metrics.pain + ' 次'));
+      if (a.metrics.cramp) sp.appendChild(el('span', 'spec', '抽筋 ' + a.metrics.cramp + ' 次'));
+      if (a.metrics.cleanStreak != null) {
+        sp.appendChild(el('span', 'spec', '连续干净 ' + a.metrics.cleanStreak + ' 次'));
+      }
+      if (a.daysSinceLast != null) {
+        sp.appendChild(el('span', 'spec', '距上次 ' + a.daysSinceLast + ' 天'));
+      }
+      card.appendChild(sp);
+    }
+
+    const ul = el('ul');
+    ul.style.cssText = 'margin:10px 0 0;padding-left:18px;font-size:14px';
+    a.reasons.forEach(r => {
+      const li = el('li', null, esc(r));
+      li.style.marginBottom = '6px';
+      ul.appendChild(li);
+    });
+    card.appendChild(ul);
+    box.appendChild(card);
+
+    // 强度建议
+    if (adj.changed) {
+      const w = el('div', 'card ' + (a.intensityAdjust < 0 ? 'warn' : 'ok'));
+      w.appendChild(el('h3', null,
+        `强度建议：${adj.from} → ${adj.to}（${adj.level}）`));
+      w.appendChild(el('p', 'mb0',
+        a.intensityAdjust < 0
+          ? '按你最近的记录，下一课建议用更轻的强度开始。这一条只是建议，不强制。'
+          : '按你最近的记录，可以进入更进阶的强度。'));
+      box.appendChild(w);
+    }
+
+    // 操作按钮
+    const acts = el('div');
+    if (a.verdict === 'advance') {
+      const b = el('button', 'btn primary', '按建议进入 ' + Goal.PHASES[st.phaseIndex + 1].name);
+      b.onclick = () => {
+        Log.advancePhase();
+        renderAssess(); renderPlan(); renderGoal();
+        toast('已进入 ' + Goal.PHASES[Log.load().phaseIndex].name);
+      };
+      acts.appendChild(b);
+
+      const stay = el('button', 'btn ghost', '先不升，再练一周');
+      stay.onclick = () => { toast('好，保持当前强度'); };
+      acts.appendChild(stay);
+    } else if (a.verdict === 'retreat' || a.verdict === 'stop') {
+      if (st.phaseIndex > 0) {
+        const b = el('button', 'btn', '退回上一个阶段');
+        b.onclick = () => {
+          Log.retreatPhase();
+          renderAssess(); renderPlan(); renderGoal();
+          toast('已退回 ' + Goal.PHASES[Log.load().phaseIndex].name);
+        };
+        acts.appendChild(b);
+      }
+      const keep = el('button', 'btn ghost', '保持当前阶段');
+      keep.onclick = () => { toast('好，保持当前阶段'); };
+      acts.appendChild(keep);
+    } else if (a.verdict === 'complete') {
+      const b = el('button', 'btn primary', '重新选一次目标');
+      b.onclick = () => { Log.resetAll(); boot(); go('goal'); };
+      acts.appendChild(b);
+    } else {
+      const b = el('button', 'btn ghost', '手动进入下一阶段（不建议）');
+      b.onclick = () => {
+        Log.advancePhase();
+        renderAssess(); renderPlan(); renderGoal();
+        toast('已手动进入 ' + Goal.PHASES[Log.load().phaseIndex].name);
+      };
+      acts.appendChild(b);
+    }
+    box.appendChild(acts);
+
+    box.appendChild(el('div', 'hint center mt',
+      '评估基于你自己填的记录（勾选 + 报有无代偿）。' +
+      '它给建议，不做强制——是否推进由你决定。'));
+  }
+
+  /* ====================================================================
+   * 参数依据
+   * ==================================================================== */
+  function renderEvidence() {
+    const box = $('#evidenceBox');
+    if (!box) return;
+    box.innerHTML = '';
+    const weak = Evidence.weakCount();
+    box.appendChild(el('div', 'hint',
+      `共 ${Evidence.ITEMS.length} 条参数，其中 ${weak} 条没有文献依据（标为 C 级）。`));
+    Evidence.renderInto(box);
   }
 
   function renderLog() {

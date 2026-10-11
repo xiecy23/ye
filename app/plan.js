@@ -179,10 +179,11 @@
    *   Currier 2023 的做法是直接给最优剂量，而不是打折。
    * → 七折已删除。现在所有阶段统一用器械上限的一半，只受硬上限约束。
    *
-   * 唯一保留的"减量"逻辑：如果上一次记录有代偿/疼痛，那是在 log 里
-   * 的 progressionFor 处理，不是这里无条件打折。
+   * 【P1 新增】weightCut：最近记录出现代偿/疼痛/抽筋/久未训练时触发，
+   * 重量降一档。阶段不变。这是有条件减量，不是无条件打折 ——
+   * 与上面被删除的"七折"性质不同：那一条没有触发条件也没有依据。
    */
-  function weightFor(ex, phaseId) {
+  function weightFor(ex, phaseId, weightCut) {
     const lim = Safety.limitFor(ex.machine);
     let base;
     if (ex.loadStyle === 'bodyweight') return { text: '自重', kg: 0 };
@@ -190,6 +191,10 @@
       ? Math.max(2.5, lim.maxPerSide * 0.5)
       : Math.max(2.5, lim.maxTotal * 0.5);
     base = Safety.round2_5(base);
+    // 有条件减量：最近记录有问题时降一档，且不低于器械最小配重
+    if (weightCut) {
+      base = Math.max(2.5, base - 2.5);
+    }
     // 硬顶：绝不超上限。round2_5 可能把 3.5 抬到 5，高位下拉这里必须再夹一次
     base = Math.min(base, lim.maxTotal);
 
@@ -206,10 +211,16 @@
   /* ---------------------------------------------------------------------
    * 渐进：只加组次，最后才加重量。加重量只有一个条件。
    * ------------------------------------------------------------------- */
-  function progressionFor(ex, phaseId, log) {
+  function progressionFor(ex, phaseId, log, weightCut) {
     const v = volumeFor(phaseId);
     const lim = Safety.limitFor(ex.machine);
-    const w = weightFor(ex, phaseId);
+    const w = weightFor(ex, phaseId, weightCut);
+
+    // 最近记录有问题时，明确告诉用户"这次不该加重量"
+    if (weightCut) {
+      return '最近记录出现了代偿或不适，本次不增加重量。' +
+             '先把这个重量做稳，再谈加重。';
+    }
 
     if (lim.note && /永久上限/.test(lim.note)) {
       return `这台是${lim.note}，任何阶段都不上调。`;
@@ -237,6 +248,7 @@
     const cap = opts.session.tasks;
     const log = opts.log;
     const usedIds = opts.usedIds || new Set();
+    const weightCut = !!opts.weightCut;
 
     const tasks = [];
     const entries = Object.entries(tpl.slots).sort((a, b) => b[1] - a[1]);
@@ -257,7 +269,7 @@
         const pick = cands[0].e;
         usedIds.add(pick.id);
 
-        const w = weightFor(pick, phaseId);
+        const w = weightFor(pick, phaseId, weightCut);
         const machine = (global.MACHINES || []).find(m => m.id === pick.machine);
 
         tasks.push({
@@ -281,7 +293,7 @@
           mistakes: pick.mistakes,
           searchHint: pick.searchHint,
           risk: riskNote(pick),
-          progression: progressionFor(pick, phaseId, log),
+          progression: progressionFor(pick, phaseId, log, weightCut),
           canSkip: true
         });
       }
@@ -360,8 +372,33 @@
     const tpls = TEMPLATES[days] || TEMPLATES[3];
     const usedIds = new Set();
 
-    const built = tpls.map(t => buildDay(t, phaseId, {
-      session: goal.session, log, usedIds
+    // 【P1】按训练记录调整强度。
+    // 之前这里直接用阶段，训练表现完全不影响计划 —— 这正是要修的缺陷。
+    // 现在若有记录，会读 Assess 的结论：疼痛/抽筋/代偿/久未训练都会降档。
+    // 注意：只降不升。自动升级风险更大，且评估基于自报数据不够可靠。
+    let effectivePhase = phaseId;
+    let adjustNote = null;
+    let weightCut = false;
+    if (log && global.Assess) {
+      try {
+        const a = global.Assess.evaluate(log);
+        if (a.intensityAdjust) {
+          const adj = global.Assess.applyIntensity(a, phaseId);
+          effectivePhase = adj.phaseId;
+          adjustNote = a.headline + ' → 强度已按记录调整为「' + adj.to + '」（' + adj.level + '）';
+        }
+        // 重量与阶段是两个独立维度。
+        // 代偿/疼痛/抽筋/久未训练 都会触发 weightCut —— 阶段不变，但重量降一档。
+        // 缺了这个，界面文案说"降一档重量"而计划原样输出，等于什么都没做。
+        weightCut = !!a.weightCut;
+      } catch (e) {
+        // 评估模块出问题绝不能影响出计划
+        effectivePhase = phaseId;
+      }
+    }
+
+    const built = tpls.map(t => buildDay(t, effectivePhase, {
+      session: goal.session, log, usedIds, weightCut
     }));
 
     // 校验闸：整周必须通过，不通过就不给用户看
@@ -376,6 +413,10 @@
 
     return {
       phaseId,
+      effectivePhase,
+      adjusted: effectivePhase !== phaseId || weightCut,
+      weightCut,
+      adjustNote: adjustNote || (weightCut ? '最近记录出现了代偿/不适，本课重量已自动降一档（阶段不变）' : null),
       days: built,
       schedule: goal.scheduleNote,
       safetyCheck: check,

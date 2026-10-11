@@ -1,4 +1,4 @@
-﻿/* =========================================================================
+/* =========================================================================
  * log.js —— 训练日志 + 进度状态
  * =========================================================================
  * 数据全部存在手机浏览器的 localStorage 里，不上传任何服务器。
@@ -128,6 +128,20 @@
     });
   }
 
+  /**
+   * 退阶。
+   * 只在用户明确点击时执行 —— 系统只给建议，不自动改。
+   * 理由：评估基于自报数据，误报时自动降级会打击积极性，
+   * 而自动升级风险更大。所以两个方向都交给人决定。
+   */
+  function retreatPhase() {
+    return update(s => {
+      if (s.phaseIndex > 0) s.phaseIndex -= 1;
+      s.week = Goal.PHASES[s.phaseIndex].weeks[0];
+      return Goal.PHASES[s.phaseIndex];
+    });
+  }
+
   function resetWeek() {
     return update(s => { s.week += 1; return s.week; });
   }
@@ -177,7 +191,7 @@
   global.Log = {
     load, save, update,
     logExercise, logSession, setLastSignal, setGoal,
-    advancePhase, resetWeek, resetAll,
+    advancePhase, retreatPhase, resetWeek, resetAll,
     stats, attendance, exportAll
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.Log;

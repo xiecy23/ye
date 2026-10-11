@@ -23,10 +23,12 @@ const ASSETS = [
   './app/data-machines.js',
   './app/data-exercises.js',
   './app/goal.js',
+  './app/log.js',
+  './app/assess.js',
   './app/plan.js',
+  './app/evidence.js',
   './app/recognize.js',
-  './app/api.js',
-  './app/log.js'
+  './app/api.js'
 ];
 
 self.addEventListener('install', e => {
