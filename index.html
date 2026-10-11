@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0f1115">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="私教">
+<meta name="description" content="零基础固定器械训练助手：认器械、定目标、排计划">
+<title>私教 · 零基础固定器械训练</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="app/app.css">
+</head>
+<body>
+
+<header>
+  <h1 id="hdrTitle">今天练什么</h1>
+  <div class="sub" id="hdrSub">正在加载…</div>
+</header>
+
+<main>
+
+  <!-- ══════════════════ 1. 器材图鉴 ══════════════════ -->
+  <section class="page" id="page-kit">
+    <h2>器材图鉴</h2>
+    <p class="lead">不知道这台是什么，就用下面的框描述你看到的东西。认出来了再看它能不能用。</p>
+
+    <div class="searchbar">
+      <span aria-hidden="true">🔍</span>
+      <input id="kitSearch" type="search" placeholder="描述一下：头上有横杆，下面一张椅子" autocomplete="off" enterkeyhint="search">
+    </div>
+    <div id="kitResults"></div>
+
+    <details class="more" id="tourBox" open>
+      <summary>今天该去哪台机器（按本周计划）</summary>
+      <div class="inner" id="todayTour"></div>
+    </details>
+
+    <details class="more" id="tourBox2">
+      <summary>不知道名字？按想练的部位找区域</summary>
+      <div class="inner" id="tourList"></div>
+    </details>
+
+    <hr>
+    <h3>拍下来，回头发给我确认</h3>
+    <p>上面靠猜，下面靠照片。拍下你不确定能不能用的器械，存在手机里，之后导出发给我，我读图后给你精确答案。</p>
+    <label class="btn primary" style="display:block;text-align:center">
+      📷 拍一台器械
+      <input id="camInput" type="file" accept="image/*" capture="environment" multiple hidden>
+    </label>
+    <div id="shotList" class="shots mt"></div>
+    <div id="shotActions"></div>
+
+    <hr>
+    <details class="more">
+      <summary>动作示意图（可选，需联网）</summary>
+      <div class="inner">
+        <p id="apiStatus">可选：联网拉取开源动作示意图库（失败不影响使用）</p>
+        <button class="btn sm" id="btnApi">拉取开源动作库</button>
+        <div class="hint mt">数据来自 free-exercise-db（公共领域许可）。拉取失败、断网或接口变动都只影响示意图，不影响任何功能。</div>
+      </div>
+    </details>
+
+    <hr>
+    <h3>全部器材（按能不能用排序）</h3>
+    <div id="kitAll"></div>
+  </section>
+
+  <!-- ══════════════════ 2. 目标 ══════════════════ -->
+  <section class="page" id="page-goal">
+    <div id="goalWizard"></div>
+    <div id="goalResult" hidden></div>
+  </section>
+
+  <!-- ══════════════════ 3. 计划 ══════════════════ -->
+  <section class="page" id="page-plan">
+    <div id="planBody"></div>
+  </section>
+
+  <!-- ══════════════════ 4. 反馈 ══════════════════ -->
+  <section class="page" id="page-react">
+    <h2>今天练完，感觉怎么样</h2>
+    <p class="lead">如实选。选「痛」或「抽筋」会直接给你停止指令——这不是客气话，是安全规则。</p>
+
+    <div class="opts" id="reactOpts">
+      <button class="opt" data-sig="doms">
+        <span class="t">😊 挺舒服 / 还行</span>
+        <span class="d">两边都正常酸，或者没什么感觉</span>
+      </button>
+      <button class="opt" data-sig="compensation">
+        <span class="t">😖 只有左边酸 / 忍不住耸肩 / 身体歪</span>
+        <span class="d">这是代偿，最重要的一类反馈</span>
+      </button>
+      <button class="opt" data-sig="skip">
+        <span class="t">🔍 器械找不到 / 时间不够</span>
+        <span class="d">换个动作，或者今天就到这儿</span>
+      </button>
+      <button class="opt" data-sig="low">
+        <span class="t">😴 今天状态一般，没什么力气</span>
+        <span class="d">只做热身也算完成</span>
+      </button>
+      <button class="opt" data-sig="cramp">
+        <span class="t">⚡ 抽筋了 / 感觉要抽筋</span>
+        <span class="d">立刻停</span>
+      </button>
+      <button class="opt" data-sig="pain">
+        <span class="t">🛑 痛（不是酸，是刺痛或关节疼）</span>
+        <span class="d">立刻停，不要顶</span>
+      </button>
+    </div>
+
+    <div id="reactOut" class="mt"></div>
+
+    <hr>
+    <h3>训练记录</h3>
+    <div id="logSummary"></div>
+    <details class="more">
+      <summary>导出/重置我的数据</summary>
+      <div class="inner">
+        <p>所有数据只存在这台手机的浏览器里，没有上传任何服务器。</p>
+        <button class="btn sm" id="btnExport">导出为文本备份</button>
+        <button class="btn sm danger" id="btnReset">清空全部数据</button>
+        <div id="exportOut"></div>
+      </div>
+    </details>
+  </section>
+
+</main>
+
+<nav class="tabbar" id="tabbar">
+  <button data-page="kit"   aria-selected="true"><span class="ic">🔍</span>器材</button>
+  <button data-page="goal"  aria-selected="false"><span class="ic">🎯</span>目标</button>
+  <button data-page="plan"  aria-selected="false"><span class="ic">📋</span>计划</button>
+  <button data-page="react" aria-selected="false"><span class="ic">💬</span>反馈</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<!-- 加载兜底：脚本全挂在 CDN 之外的本地文件上，若因 Service Worker 未装上
+     或被浏览器清除而加载失败，不能让用户面对白屏。 -->
+<div id="bootFail" hidden>
+  <div class="empty" style="padding-top:40px">
+    <div style="font-size:34px;margin-bottom:10px">📴</div>
+    <h2 style="font-size:17px;color:var(--text)">页面没能加载出来</h2>
+    <p>通常是离线缓存没装上。修一下：</p>
+    <div style="text-align:left;max-width:420px;margin:16px auto">
+      <div class="card"><b>1.</b> 连一次网络，打开本页（首次必须联网）</div>
+      <div class="card"><b>2.</b> 等待 2 秒，然后下拉刷新</div>
+      <div class="card"><b>3.</b> 手机上再点「添加到主屏幕」，之后就能离线用了</div>
+      <div class="card"><b>还是不行？</b> 换个浏览器打开，或清除本站缓存后重试。</div>
+    </div>
+    <button class="btn primary" style="max-width:420px" onclick="location.reload()">重新加载</button>
+  </div>
+</div>
+
+<script>
+  // 在主脚本之前设一个哨兵：若 app.js 因为任何原因没跑起来，这里会兜住
+  window.__fitcoachBooted = false;
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      if (!window.__fitcoachBooted) {
+        var n = document.getElementById('bootFail');
+        if (n) n.hidden = false;
+      }
+    }, 2500);
+  });
+</script>
+
+<script src="app/id-alias.js"></script>
+<script src="app/safety.js"></script>
+<script src="app/data-machines.js"></script>
+<script src="app/data-exercises.js"></script>
+<script src="app/goal.js"></script>
+<script src="app/plan.js"></script>
+<script src="app/recognize.js"></script>
+<script src="app/api.js"></script>
+<script src="app/log.js"></script>
+<script src="app/app.js"></script>
+</body>
+</html>
