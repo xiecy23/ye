@@ -178,8 +178,8 @@
     if (comp >= 2) {
       base.verdict = 'retreat';
       base.headline = `最近 ${sample} 次里有 ${comp} 次代偿（耸肩/歪斜/单侧酸）`;
-      base.reasons.push('代偿是这三种信号里最需要重视的——它意味着目标肌肉没在work，负荷被代偿肌接管了。');
-      base.reasons.push('建议退回上一个阶段，把重量降到能全程控制为止。代偿不解决，加多少重量都没用。');
+      base.reasons.push('代偿是这三类信号里最需要重视的——它意味着目标肌肉没在工作，负荷被代偿肌接管了。');
+      base.reasons.push('建议退回上一个阶段。触发代偿的那个动作先停掉，下次从空载或最轻一档重新开始，不是降重量接着做。');
       base.intensityAdjust = -1;
       return base;
     }

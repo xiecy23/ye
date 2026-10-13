@@ -96,15 +96,26 @@
 
   /* ====================================================================
    * 时间窗：本周 = 周一 00:00 ~ 下周一 00:00（本地时区）
+   *
+   * 【口径统一】起点统一取 Log.weekStart() —— 它同时被 Log.stats().thisWeek
+   * 使用。原先本文件自己算一份、log.js 用滚动 7 天，导致周日那天
+   * 计划页「本周 N 次」和反馈页「近 7 天 N 次」会差 1。
+   * 保留 weekWindow 这个包装只是为了 index（0=周一）和 end 的便利，
+   * 时间计算本身不再另起一份。见 docs/内容与安全审校报告.md 附带发现。
    * ==================================================================== */
 
   function weekWindow(now) {
     const d = now || new Date();
-    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const dow = (start.getDay() + 6) % 7;         // 0 = 周一
-    start.setDate(start.getDate() - dow);
-    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
-    return { start, end, index: dow };
+    const startMs = (typeof Log !== 'undefined' && Log.weekStart)
+      ? Log.weekStart(d)
+      : (function () {                       // Log 不可用时的等价实现
+          const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+          return x.getTime();
+        })();
+    const start = new Date(startMs);
+    const end = new Date(startMs + 7 * 864e5);
+    return { start, end, index: (start.getDay() + 6) % 7 };
   }
 
   function inWeek(iso, w) {

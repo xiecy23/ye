@@ -152,6 +152,27 @@
   }
 
   /* ---------------------------------------------------------------------
+   * 本周时间窗：周一 00:00 ~ 下周一 00:00（本地时区）
+   *
+   * 【口径统一】原先这里用"滚动 7 天"（Date.now() - 7*864e5），
+   * 而 progress.js 用周一到周日。结果：周日那天反馈页的「近 7 天 N 次」
+   * 会比计划页的「本周 N 次」多 1，两个数字互相打架。
+   * 现在统一走这一个函数，progress.js 也调用它。
+   * ------------------------------------------------------------------- */
+  function weekStart(now) {
+    const d = now ? new Date(now) : new Date();
+    d.setHours(0, 0, 0, 0);
+    const dow = (d.getDay() + 6) % 7;   // 0 = 周一
+    d.setDate(d.getDate() - dow);
+    return d.getTime();
+  }
+
+  function inThisWeek(dateStr, now) {
+    const t = new Date(dateStr).getTime();
+    return t >= weekStart(now) && t < weekStart(now) + 7 * 864e5;
+  }
+
+  /* ---------------------------------------------------------------------
    * 统计
    * ------------------------------------------------------------------- */
   function stats(s) {
@@ -163,8 +184,8 @@
       painCount: all.filter(e => e.pain).length,
       crampCount: all.filter(e => e.cramp).length,
       compensationCount: all.filter(e => e.compensation).length,
-      thisWeek: st.sessions.filter(x =>
-        (Date.now() - new Date(x.date).getTime()) < 7 * 864e5).length
+      // 与 progress.js 同源，不再是滚动 7 天
+      thisWeek: st.sessions.filter(x => inThisWeek(x.date)).length
     };
   }
 
@@ -192,7 +213,7 @@
     load, save, update,
     logExercise, logSession, setLastSignal, setGoal,
     advancePhase, retreatPhase, resetWeek, resetAll,
-    stats, attendance, exportAll
+    stats, attendance, exportAll, weekStart, inThisWeek
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.Log;
 
