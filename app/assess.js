@@ -58,9 +58,12 @@
           need: { cleanStreak: 3 }
         };
       case 'strengthen':
-        // 「愿意在动作不干净的时候主动降重量」——这个只能自问，不能自动判断
+        // 【安全修正】原为「在动作不干净时主动降重量，而不是硬扛」。
+        // 「降重量」与 plan.js / safety.js 的停止口径冲突：降重继续做，
+        // 负荷仍被代偿肌接管。正确动作是停掉这台，不是降着继续。
+        // 这一条只能自问，不能自动判断。
         return {
-          text: '在动作不干净时主动降重量，而不是硬扛',
+          text: '在动作变形时主动停掉那台机器，而不是硬做完',
           need: { cleanStreak: 2 },
           selfReport: true
         };
@@ -206,7 +209,7 @@
       if (phaseIdx >= Goal.PHASES.length - 1) {
         base.verdict = 'complete';
         base.headline = '8 周全部完成';
-        base.reasons.push('最后一个阶段的目标是"愿意在动作不干净时主动降重量"——你自己判断。');
+        base.reasons.push('最后一个阶段的目标是"在动作变形时主动停掉那台机器"——你自己判断。');
         base.reasons.push('建议重新做一次目标评估，选下个周期的主攻方向。');
         base.intensityAdjust = 0;
       } else {

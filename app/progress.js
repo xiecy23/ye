@@ -141,6 +141,10 @@
 
   function copy(o) {
     const { done, expected, sets, weekLabel, restDays } = o;
+    // 及格线（goal.js 统一定义：每周 N-1 次）。分支判定必须用它，
+    // 否则会出现 settled=true 但文案还说"剩下的不用赶"的自相矛盾。
+    const pass = o.pass != null ? o.pass
+      : (global.Goal && Goal.passLine ? Goal.passLine(expected) : Math.max(1, expected - 1));
 
     // —— 还没定目标：不算数，只做引导 ——
     if (!expected) {
@@ -164,20 +168,26 @@
     }
 
     // —— 做了一部分：明确"这就算数"，目标只做背景 ——
-    if (done < expected) {
+    // 用及格线而不是 expected 判定：练到及格线就该进"练够了"分支，
+    // 不该继续说"剩下的不用赶"。
+    if (done < pass) {
       return {
         tone: 'good',
         headline: '这周已经练了 ' + done + ' 次，这就算数',
-        detail: '你的目标是每周 ' + expected + ' 次。剩下的 ' + (expected - done) +
-                ' 次不用赶 —— 周末去一次，或者放到下周都行，练得少不会白练。'
+        detail: '你的目标是每周 ' + expected + ' 次，及格线是 ' + pass + ' 次。' +
+                '剩下的不用赶 —— 周末去一次，或者放到下周都行，练得少不会白练。'
       };
     }
 
     // —— 达标：直接宣布结束，把话头引向恢复，不引向加量 ——
     return {
       tone: 'settled',
-      headline: '这周 ' + done + ' 次，练够了',
-      detail: '已经到每周 ' + expected + ' 次的目标了。' +
+      headline: done >= expected
+        ? ('这周 ' + done + ' 次，练够了')
+        : ('这周 ' + done + ' 次，已经过了及格线'),
+      detail: (done >= expected
+        ? '已经到每周 ' + expected + ' 次的目标了。'
+        : '你给自己定的目标是 ' + expected + ' 次，' + pass + ' 次就是及格线。') +
               '接下来几天是给身体恢复用的 —— 想动就散散步或拉伸，不用再加量。'
     };
   }
@@ -206,7 +216,9 @@
     const c = copy({
       done: done, expected: expected, sets: sets,
       restDays: Math.max(0, 7 - expected),
-      weekLabel: (st.week || 1)
+      weekLabel: (st.week || 1),
+      // 及格线从 goal.js 取，保证与目标页的「及格线：每周至少出勤 N 次」同一个数
+      pass: (global.Goal && Goal.passLine) ? Goal.passLine(expected) : Math.max(1, expected - 1)
     });
 
     // 本周还剩几个日历天（周一=0）
@@ -229,7 +241,12 @@
       daysLeft: daysLeft,
       weekNo: st.week || 1,
       phaseName: phaseName,
-      settled: done >= expected && expected > 0,
+      // 【口径统一】原为 done >= expected（要练满 freq.days 才算够）。
+      // 但 goal.js 定义的及格线是 freq.days - 1（"每周至少出勤 N 次就算达标"），
+      // 两个数字同屏出现会打架。现在 settled 用统一的及格线判定，
+      // 大数字仍显示用户自己定的目标 —— 那是他的意愿，不该改。
+      settled: done >= (global.Goal && Goal.passLine
+        ? Goal.passLine(expected) : Math.max(1, expected - 1)) && expected > 0,
       // 0 项也算完成：产品原则的开关位，UI 层想强调"0 项也算"时读它
       zeroCounts: true,
       label: expected ? (done + ' / ' + expected + ' 次') : '未设定',
@@ -257,7 +274,15 @@
     const meta = [];
     if (p.weekNo) meta.push('第 ' + p.weekNo + ' 周');
     if (p.phaseName) meta.push(p.phaseName);
-    meta.push('本周还剩 ' + p.daysLeft + ' 天');
+    // 【文案修正】原为无条件显示「本周还剩 N 天」。
+    // 问题是：练够之后还显示倒计时，等于在暗示"你还能再练"——
+    // 这与本项目「不施压」的原则冲突（见 docs/新增模块文案审校.md P-1）。
+    // 现在练够了就不倒数，改成肯定句；没练够时才提还剩几天。
+    if (p.settled) {
+      meta.push('这周的份已经练够了');
+    } else if (p.daysLeft > 0) {
+      meta.push('本周还剩 ' + p.daysLeft + ' 天');
+    }
     card.appendChild(el('p', 'pg-meta', meta.join(' · ')));
 
     if (p.expected) {

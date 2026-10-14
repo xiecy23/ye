@@ -192,7 +192,11 @@
         '腿部训练降到每周 1 次，且不超过器械上限',
         '如果这 2 周出现腿重度酸痛或臀部抽筋，本阶段顺延，不硬推进'
       ],
-      exitCondition: '愿意在动作不干净的时候主动降重量——这本身就是达标',
+      // 【安全修正】原为「愿意在动作不干净的时候主动降重量——这本身就是达标」。
+      // 这与 plan.js / safety.js 的「停掉这个动作，不要降重量接着做」正面冲突，
+      // 而且被 weekpack.js 抄走做成了第 6 周的成就奖励。
+      // 降重量继续 = 负荷仍被同一块代偿肌接管，只是数字变小，代偿会固化。
+      exitCondition: '在动作变形的时候主动停掉那台机器、没有硬做完——这本身就是达标',
       why: '这个阶段最容易受伤，因为很多人觉得「练了 4 周了可以猛上了」。不要。'
     },
     {
@@ -241,6 +245,26 @@
     return 0;
   }
 
+  /* ---------------------------------------------------------------------
+   * 唯一的「及格线」定义。
+   *
+   * 【口径统一】原先三个模块各算各的：
+   *   goal.js     freq.days - 1  （每周 3 次 -> 及格 2 次）
+   *   progress.js freq.days      （要练满 3 次才算 settled）
+   *   plan.js     每课 2 个任务
+   * 三个数字会同屏出现（计划页顶部进度卡 + 各训练日卡片底部），互相打架。
+   * 见 docs/新增模块文案审校.md P-2。
+   * 现在只有这一个函数说了算，progress.js 也调用它。
+   * ------------------------------------------------------------------- */
+  function passLine(daysPerWeek) {
+    return Math.max(1, (daysPerWeek || 3) - 1);
+  }
+
+  function minPassText(daysPerWeek) {
+    const d = daysPerWeek || 3;
+    return '每周至少出勤 ' + passLine(d) + ' 次就算达标（不是 ' + d + ' 次）';
+  }
+
   /**
    * 把问卷答案编译成一份目标卡
    */
@@ -264,7 +288,7 @@
       freq: freq,
       session: sess,
       totalSessions: freq.days * 8,
-      minPass: '每周至少出勤 ' + Math.max(1, freq.days - 1) + ' 次就算达标（不是 ' + freq.days + ' 次）',
+      minPass: minPassText(freq.days),
       scheduleNote: buildSchedule(freq.days),
       phase: PHASES[0],
       forbidden: FORBIDDEN
@@ -291,7 +315,7 @@
   global.Goal = {
     PAINS, FREQ, SESSION, PHASES, FORBIDDEN,
     derive, currentPhase, phaseIndexForWeek, buildSchedule,
-    painsByPart
+    painsByPart, passLine, minPassText
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.Goal;
 
