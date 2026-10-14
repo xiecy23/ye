@@ -141,6 +141,22 @@ button.btn.sm { padding: 8px 12px; font-size: 13px; min-height: 36px; width: aut
 .opt .t { font-weight: 600; display: block; margin-bottom: 2px; }
 .opt .d { font-size: 12px; color: var(--text-dim); }
 
+/* 借鉴 Keep：短标签做主显示，长描述做副标题。
+   选项本身即答案，用户扫一眼就知道是不是自己，不用读完整句再翻译。 */
+.tagrow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 7px; }
+.tag {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 10px;
+  font-size: 13px; font-weight: 650; color: var(--text);
+}
+.opt[aria-pressed="true"] .tag {
+  background: var(--accent); border-color: var(--accent); color: #06101f;
+}
+.grouplabel {
+  font-size: 12px; color: var(--text-faint); font-weight: 600;
+  margin: 14px 0 6px; letter-spacing: .5px;
+}
+
 /* ---------- 搜索 ---------- */
 .searchbar {
   display: flex; gap: 8px; align-items: center;

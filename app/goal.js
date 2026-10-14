@@ -16,12 +16,23 @@
 
   /* ---------------------------------------------------------------------
    * Q1：你现在最想解决的是什么？（不是问目标，问痛点）
+   *
+   * 【借鉴 Keep】Keep 的目标选项不是描述句，而是短标签：
+   * 「改善圆肩驼背」「天鹅颈」「马甲线雕刻」「蜜桃臀」。
+   * 短、口语、有画面，扫一眼就知道是不是自己。
+   *
+   * 所以每项现在有两层：
+   *   tags  —— 短标签，选项按钮上直接显示这几个词（Keep 式）
+   *   label —— 完整描述，选中后才展开解释
+   * 选项本身即答案，不需要用户二次翻译。
    * ------------------------------------------------------------------- */
   const PAINS = [
     {
       id: 'posture',
+      tags: ['圆肩驼背', '高低肩', '脖子前伸'],
       label: '久坐腰背酸、含胸驼背、脖子前伸',
       short: '体态问题',
+      part: '体态',                 // Keep 式的粗分类，用于分组显示
       // 训练侧重部位：体态问题的核心是"让该工作的肌肉工作"
       focus: ['core', 'back', 'chest'],
       why: '你的核心矛盾是左高右低的高低肩加左侧上斜方肌代偿。体态训练的重点不是把肌肉练大，而是让上斜方肌别抢活、让背部和核心真正发力。',
@@ -35,8 +46,10 @@
     },
     {
       id: 'endurance',
+      tags: ['爬楼喘', '走路就累', '体力差'],
       label: '爬楼就喘、走点路就累、容易累',
       short: '心肺体能',
+      part: '体能',
       focus: ['legs', 'core', 'cardio'],
       why: '先补心肺和基础体能。你的腿部恢复能力偏弱，所以腿部力量训练要极其保守，有氧才是主力。',
       metrics: [
@@ -48,8 +61,10 @@
     },
     {
       id: 'tone',
+      tags: ['想结实', '不要松垮', '有轮廓'],
       label: '想结实一点、不要松垮',
       short: '基础肌力',
+      part: '塑形',
       focus: ['chest', 'back', 'legs', 'core'],
       why: '新手阶段的"结实"来自动作质量和规律性，不是重量。同一个重量能稳稳做够次数，比换更重的杠铃有效得多。',
       metrics: [
@@ -61,8 +76,10 @@
     },
     {
       id: 'habit',
+      tags: ['养成习惯', '就是动起来'],
       label: '就是想动起来、养成习惯',
       short: '习惯养成',
+      part: '习惯',
       focus: ['legs', 'back', 'chest', 'core'],
       why: '习惯是第一目标。新手最大的敌人不是强度不够，是断了三天之后彻底放弃。所以这里的及格线定得很低。',
       metrics: [
@@ -74,8 +91,10 @@
     },
     {
       id: 'stress',
+      tags: ['压力大', '想出汗', '解压'],
       label: '压力大、想出汗发泄一下',
       short: '情绪调节',
+      part: '情绪',
       focus: ['legs', 'back', 'core', 'cardio'],
       why: '这个目标完全正当。运动对情绪的即时改善比增肌快得多，你第一次练完就能感觉到，不需要等 8 周。',
       metrics: [
@@ -86,6 +105,13 @@
       caution: '唯一要注意的是：压力大的时候容易练过头。状态差的那天，只做热身也算完成。'
     }
   ];
+
+  /** 按 part 分组，界面上分批展示，避免一次抛 5 个大选项 */
+  function painsByPart() {
+    const g = {};
+    PAINS.forEach(p => (g[p.part] || (g[p.part] = [])).push(p));
+    return g;
+  }
 
   /* ---------------------------------------------------------------------
    * Q2：一周能练几次？
@@ -264,7 +290,8 @@
 
   global.Goal = {
     PAINS, FREQ, SESSION, PHASES, FORBIDDEN,
-    derive, currentPhase, phaseIndexForWeek, buildSchedule
+    derive, currentPhase, phaseIndexForWeek, buildSchedule,
+    painsByPart
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.Goal;
 

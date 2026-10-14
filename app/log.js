@@ -40,6 +40,7 @@
     entries: {},         // { exerciseId: [ {date, sets, reps, kg, pain, cramp, compensation, note} ] }
     sessions: [],        // [{date, dayKey, done:[exIds], feel:'good'|'ok'|'bad', note}]
     lastSignal: null,    // 最近一次反馈，用于计划页提示
+    goalHistory: [],     // 换过的目标存档：[{pain, short, startedAt, endedAt, sessions, entries}]
     createdAt: null
   };
 
@@ -105,19 +106,66 @@
     return update(s => { s.lastSignal = signal; return signal; });
   }
 
+  /**
+   * 设定 / 切换目标。
+   *
+   * 【借鉴 Keep 后修正】原实现是"换了痛点就清空全部 entries 和 sessions"，
+   * 理由是"旧数据对新目标没参考价值"。这个判断是错的：
+   *
+   *   entries（做了几组、有没有代偿、有没有痛）反映的是**动作控制能力**，
+   *   这部分不随目标变化 —— 你换目标不会突然忘记怎么沉肩。
+   *   phaseIndex / week 反映的是**当前目标的进度**，这个才该重置。
+   *
+   * Keep 的做法是随时能换课程包而不丢历史。所以现在：
+   *   - 保留 entries / sessions（用户的资产，也是 Assess 的评估依据）
+   *   - 重置 phaseIndex / week（新目标从头开始）
+   *   - 把旧目标存档到 goalHistory，可回看"我练过哪几个目标"
+   */
   function setGoal(goal) {
     return update(s => {
-      // 目标变了就重置阶段和日志 —— 换了痛点，之前的训练数据对新目标没有参考价值
-      if (s.goal && s.goal.pain !== goal.pain) {
-        s.entries = {};
-        s.sessions = [];
+      const changed = s.goal && s.goal.pain !== goal.pain;
+
+      if (changed) {
+        s.goalHistory = s.goalHistory || [];
+        const ents = Object.values(s.entries || {}).flat();
+        s.goalHistory.push({
+          pain: s.goal.pain,
+          short: s.goal.short,
+          statement: s.goal.statement,
+          startedAt: s.createdAt || null,
+          endedAt: new Date().toISOString(),
+          sessions: (s.sessions || []).length,
+          entries: ents.length,
+          // 记录切换时的身体信号，方便回看"为什么换目标"
+          hadPain: ents.filter(e => e.pain).length,
+          hadCramp: ents.filter(e => e.cramp).length
+        });
+        if (s.goalHistory.length > 10) s.goalHistory = s.goalHistory.slice(-10);
+
+        // 只重置目标进度，不动训练记录
         s.phaseIndex = 0;
         s.week = 1;
       }
+
       s.goal = goal;
       if (!s.createdAt) s.createdAt = new Date().toISOString();
       return goal;
     });
+  }
+
+  /** 当前目标已经练了多久 / 多少次 */
+  function goalProgress(s) {
+    const st = s || load();
+    const all = Object.values(st.entries || {}).flat();
+    return {
+      sessions: (st.sessions || []).length,
+      entries: all.length,
+      clean: all.filter(e => !e.pain && !e.cramp && !e.compensation).length,
+      compensation: all.filter(e => e.compensation).length,
+      pain: all.filter(e => e.pain).length,
+      cramp: all.filter(e => e.cramp).length,
+      history: (st.goalHistory || []).slice().reverse()
+    };
   }
 
   function advancePhase() {
@@ -211,7 +259,7 @@
 
   global.Log = {
     load, save, update,
-    logExercise, logSession, setLastSignal, setGoal,
+    logExercise, logSession, setLastSignal, setGoal, goalProgress,
     advancePhase, retreatPhase, resetWeek, resetAll,
     stats, attendance, exportAll, weekStart, inThisWeek
   };

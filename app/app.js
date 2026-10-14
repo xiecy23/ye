@@ -417,6 +417,17 @@
     phc.appendChild(ex);
     res.appendChild(phc);
 
+    // 8 周周包列表（借鉴 Keep 的「第N周 | 暴汗运动」）。
+    // 把四个笼统阶段拆成八个可见的小包，用户能看到"这周练什么"，
+    // 而不是只在同一个"适应期"里待两周。
+    // 用 mountInto 会清空 res（里面已有目标卡和阶段卡），所以用 renderInto。
+    if (typeof WeekPack !== 'undefined') {
+      try {
+        if (WeekPack.renderInto) WeekPack.renderInto(res, st.week);
+        else if (WeekPack.mountInto) WeekPack.mountInto(res, st.week);
+      } catch (e) { /* 装饰性组件，失败不影响目标页 */ }
+    }
+
     const mc = el('div', 'card');
     mc.appendChild(el('h3', null, '怎么算做到了'));
     g.metrics.forEach(m => {
@@ -458,14 +469,27 @@
     const wiz = $('#goalWizard');
     const ans = {};
     wiz.appendChild(el('h2', null, '1 · 你现在最想解决什么'));
-    wiz.appendChild(el('p', 'lead', '不用想"目标"，选一个你现在最烦的情况就行。'));
+    wiz.appendChild(el('p', 'lead',
+      '不用想"目标"，挑一个最像你现在的状态的。选错了也能随时换，练过的记录不会丢。'));
 
-    const mk = (items, key) => {
+    const mk = (items, key, opts) => {
       const box = el('div', 'opts mt');
       items.forEach(it => {
         const b = el('button', 'opt');
-        b.innerHTML = '<span class="t">' + esc(it.label) + '</span>' +
-                      (it.short ? '<span class="d">' + esc(it.short) + '</span>' : '');
+
+        // 【借鉴 Keep】标签做主显示，长描述做副标题。
+        // Keep 的选项是「改善圆肩驼背」这种短标签，不是描述句——
+        // 扫一眼就知道是不是自己，不需要读完整句话再翻译。
+        if (it.tags && it.tags.length) {
+          const tags = el('span', 'tagrow');
+          it.tags.forEach(t => tags.appendChild(el('span', 'tag', esc(t))));
+          b.appendChild(tags);
+          b.appendChild(el('span', 'd', esc(it.label)));
+        } else {
+          b.innerHTML = '<span class="t">' + esc(it.label) + '</span>' +
+                        (it.short ? '<span class="d">' + esc(it.short) + '</span>' : '');
+        }
+
         b.setAttribute('aria-pressed', 'false');
         b.addEventListener('click', () => {
           ans[key] = it.id != null ? it.id : it;
@@ -478,7 +502,15 @@
       wiz.appendChild(box);
     };
 
-    mk(Goal.PAINS.map(p => ({ label: p.label, short: p.short, id: p.id })), 'pain');
+    // 痛点按 part 分批，避免一次抛 5 个大选项
+    const grouped = Goal.painsByPart();
+    Object.keys(grouped).forEach(part => {
+      wiz.appendChild(el('div', 'grouplabel', esc(part)));
+      mk(grouped[part].map(p => ({
+        tags: p.tags, label: p.label, short: p.short, id: p.id
+      })), 'pain');
+    });
+
     wiz.appendChild(el('h2', null, '2 · 一周能练几次'));
     wiz.appendChild(el('p', 'lead', '按你能保证的次数选，不是按你想练几次。'));
     mk(Goal.FREQ.map(f => ({ label: f.label, short: f.note, id: f.days })), 'freq');
@@ -514,6 +546,13 @@
     // 必须放在 innerHTML='' 之后，否则会被清掉。
     if (typeof Progress !== 'undefined' && Progress.mountInto) {
       try { Progress.mountInto(box); } catch (e) { /* 绝不因装饰性组件失败而影响出计划 */ }
+    }
+
+    // 代偿观察卡。必须用 renderInto 而不是 mountInto ——
+    // mountInto 内部有 container.innerHTML = ''，会把这上面刚插入的
+    // 「本周完成度」卡整个冲掉。这是 comp-builder 明确提醒过的陷阱。
+    if (typeof Compensation !== 'undefined' && Compensation.renderInto) {
+      try { Compensation.renderInto(box); } catch (e) { /* 装饰性组件不阻断出计划 */ }
     }
 
     if (!st.goal) {
