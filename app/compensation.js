@@ -218,7 +218,12 @@
   }
 
   function streakLine(streak, compensation) {
-    if (compensation > 0 && streak >= 3) return '最近连续 ' + streak + ' 次是干净的。';
+    // 【文案修正】原为「最近连续 N 次是干净的。」
+    // 「干净」在本文件里只排除代偿，不排除疼痛和抽筋；
+    // 而 assess.js 的 cleanStreak 要求三类全无。同一个词两个定义，
+    // 两张卡都在计划页，用户会拿到矛盾信息。
+    // 用户可见文案里改用明确说法，不用裸的「干净」。
+    if (compensation > 0 && streak >= 3) return '最近连续 ' + streak + ' 次没有报代偿。';
     return '';
   }
 
@@ -227,14 +232,19 @@
   }
 
   function copy(o) {
-    const { total, compensation, rate, streak, trend } = o;
+    // pain / cramp 也要解构：note 里要判断是否存在痛与抽筋，
+    // 好在卡片上直接给出停止指令而不是让用户自己去另一页找。
+    const { total, compensation, rate, streak, trend, pain, cramp } = o;
 
     // —— 一条记录都没有：说"还没有记录"，不说"0 次代偿" ——
     if (total === 0) {
       return {
         tone: 'empty',
         headline: '还没有记录',
-        detail: '这一格是空的，不是零分。' +
+        // 【文案修正】原为「这一格是空的，不是零分。」
+        // 这句话本意是安慰，但它第一次把"分数"概念带进了这张卡 ——
+        // 而整个设计都在回避评分框架。改成不提分数。
+        detail: '这一格是空的，不是你没做够 —— ' +
                 '等你哪天在训练卡上点「记一次执行」，这里才开始有东西可看。' +
                 '现在什么都不用做。'
       };
@@ -244,10 +254,12 @@
     if (total < MIN_SAMPLE) {
       return {
         tone: 'empty',
-        headline: '数据还太少，先攒几条',
-        detail: '现在有 ' + total + ' 条记录，还看不出什么，所以这里先不下结论。' +
-                '到 ' + MIN_SAMPLE + ' 条以上再说 —— 练到哪记到哪就行，' +
-                '不用为了凑数专门去记。'
+        // 【文案修正】原为「数据还太少，先攒几条」。
+        // 「先攒几条」是任务口吻：headline 是最大字号，
+        // 用户先读到的是"你还欠几条记录"。改为陈述现状，不下任务。
+        headline: '现在只有 ' + total + ' 条记录，还看不出什么',
+        detail: '所以这里先不下结论 —— 样本够的时候它会自己开始说话。' +
+                '练到哪记到哪就行，不用为了凑数专门去记。'
       };
     }
 
@@ -342,7 +354,10 @@
       compensation: compensation,
       rate: rate,
       streak: streak,
-      trend: tr.trend
+      trend: tr.trend,
+      // note 里要按有无痛/抽筋给出不同处置，必须传进去
+      pain: pain,
+      cramp: cramp
     });
 
     return {
@@ -371,15 +386,27 @@
       tone: c.tone,
       enough: total >= MIN_SAMPLE,
       minSample: MIN_SAMPLE,
-      label: total === 0 ? '还没有记录' : (clean + ' / ' + total + ' 次干净'),
+      // 【文案修正】同上：不用裸的「干净」，改成明确的「没有报代偿」
+      label: total === 0 ? '还没有记录' : (clean + ' / ' + total + ' 次没有报代偿'),
       ariaLabel: total === 0
         ? '动作控制观察窗口：还没有记录'
         : ('动作控制观察窗口：累计 ' + total + ' 次记录，其中 ' +
            compensation + ' 次报了代偿'),
-      note: '代偿 = 耸肩、身体歪、只有单侧酸。它是身体给的信号，不是评分 —— ' +
-            '报几次都不影响你「做了就算完成」。' +
-            '想知道是哪个动作触发的，可以在「反馈」页的记录里对一下；' +
-            '疼痛和抽筋的处理也在那一页。'
+      // 【安全修正】原为「想知道是哪个动作触发的，可以在「反馈」页的记录里对一下；
+      // 疼痛和抽筋的处理也在那一页。」
+      // 这是把处置推断成了用户的任务 —— 尤其"疼痛和抽筋的处理也在那一页"
+      // 等于让用户自己去找。而痛和抽筋是停止信号，必须在这里直接给指令。
+      // 见 docs/新增模块文案审校.md C-4。
+      note: (pain > 0 || cramp > 0)
+        ? ('记录里有 ' +
+           (pain > 0 ? ('疼痛 ' + pain + ' 次，') : '') +
+           (cramp > 0 ? ('抽筋 ' + cramp + ' 次。') : '') +
+           '痛和抽筋都是停止信号，不是"练得不够" —— 出现就立刻停掉那个动作，' +
+           '当天不补做。疼痛持续超过 3 天，或伴随肿胀、关节响、活动受限，' +
+           '去看骨科或康复科。代偿的处理见上面。')
+        : ('代偿 = 耸肩、身体歪、只有单侧酸。它是身体给的信号，不是评分 —— ' +
+           '报几次都不影响你「做了就算完成」。' +
+           '想知道是哪个动作触发的，可以在「反馈」页的记录里对一下。')
     };
   }
 
@@ -431,7 +458,8 @@
       bar.appendChild(segComp);
       card.appendChild(bar);
 
-      const bits = ['干净 ' + p.clean + ' 次', '代偿 ' + p.compensation + ' 次'];
+      // 【文案修正】同上：「干净」改为明确的说法
+      const bits = ['没有报代偿 ' + p.clean + ' 次', '代偿 ' + p.compensation + ' 次'];
       if (p.pain > 0) bits.push('疼痛 ' + p.pain + ' 次');
       if (p.cramp > 0) bits.push('抽筋 ' + p.cramp + ' 次');
       card.appendChild(el('p', 'cp-legend', bits.join(' · ')));

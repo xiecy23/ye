@@ -90,14 +90,36 @@
    * ------------------------------------------------------------------- */
   function logSession(dayKey, doneExIds, feel, note) {
     return update(s => {
-      s.sessions.push({
+      // 【缺陷修复】同一 dayKey 只应有一条记录。
+      // 原实现无条件 push，重复勾选同一训练日会累加多条，
+      // 让 progress 卡的 done 虚高、达标判定失真。
+      // 这里改为「覆盖当天这一条」，重复勾选只更新内容不增加条数。
+      const idx = s.sessions.findIndex(x => x.dayKey === dayKey);
+      const rec = {
         date: new Date().toISOString(),
         dayKey,
         done: doneExIds || [],
         feel: feel || 'ok',
         note: note || ''
-      });
+      };
+      if (idx >= 0) s.sessions[idx] = rec;
+      else s.sessions.push(rec);
+
       if (s.sessions.length > 60) s.sessions = s.sessions.slice(-60);
+      return s.sessions;
+    });
+  }
+
+  /**
+   * 撤销一次训练课记录。
+   * 配合界面上的"练完勾一下"复选框 —— 取消勾选时必须真的删掉这条记录，
+   * 否则出勤次数会随勾选/取消反复累加。
+   */
+  function unlogSession(dayKey) {
+    return update(s => {
+      const idx = s.sessions.findIndex(x => x.dayKey === dayKey);
+      if (idx < 0) return s.sessions;
+      s.sessions.splice(idx, 1);
       return s.sessions;
     });
   }
@@ -259,7 +281,7 @@
 
   global.Log = {
     load, save, update,
-    logExercise, logSession, setLastSignal, setGoal, goalProgress,
+    logExercise, logSession, unlogSession, setLastSignal, setGoal, goalProgress,
     advancePhase, retreatPhase, resetWeek, resetAll,
     stats, attendance, exportAll, weekStart, inThisWeek
   };

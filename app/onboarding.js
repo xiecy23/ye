@@ -53,7 +53,16 @@
       points: [
         '这里只做三件事：<b>认器材</b>、<b>定目标</b>、<b>每天给一份清单</b>。',
         '清单上每一条都写清楚用哪台机器、几组几次、什么重量上限。',
-        '能不能用这台、什么时候必须停，已经在代码里判好了，不用你自己决定。'
+        // 【安全修正】原为「能不能用这台、什么时候必须停，已经在代码里判好了，
+        // 不用你自己决定。」
+        // 前半句成立（safety.js 的 markSafety 确实预先判了），
+        // 但后半句是危险的：痛、抽筋、代偿这三个最高优先级信号，
+        // 代码完全无法自行检测，只能等用户上报。
+        // 对零基础新手说「不用你自己决定」，会把注意力从身体感觉上移开，
+        // 而这恰恰是新手最需要建立的能力。
+        '能不能用这台，代码已经替你判好了。但有一件事只能你自己来：' +
+        '做的时候感觉不对（痛、抽筋、耸肩、身体歪），要如实告诉它 —— ' +
+        '在任务卡上勾一下、或去「反馈」页选一下，它才知道该让你停。'
       ],
       note: '这不是考核表。做 0 项也算完成，做少了也不会有人来催你。'
     },
@@ -268,14 +277,15 @@
     head.appendChild(x);
     root.appendChild(head);
 
-    // 步骤指示
-    root.appendChild(el('p', 'onb-dots',
-      '第 ' + (idx + 1) + ' 步 / 共 ' + STEPS.length + ' 步 · 大约 ' + (STEPS.length * 20) + ' 秒读完'));
-
     // 正文：aria-live 让切步自动被读出来，不抢焦点就不会打断打字/滚动
     const body = el('div', 'onb-body');
     body.setAttribute('aria-live', 'polite');
     body.setAttribute('aria-atomic', 'true');
+    // 【无障碍修正】步骤指示原在 body 之外，aria-live 覆盖不到。
+    // 删掉重复的 UX.announce 之后，读屏器就听不到"第几步"了，
+    // 所以必须把它移进 body，才能被同一次播报读到。
+    body.appendChild(el('p', 'onb-dots',
+      '第 ' + (idx + 1) + ' 步 / 共 ' + STEPS.length + ' 步 · 大约 ' + (STEPS.length * 20) + ' 秒读完'));
     body.appendChild(el('p', 'onb-lead', s.lead));
     const ul = el('ul');
     (s.points || s.steps || []).forEach(function (p) { ul.appendChild(el('li', null, p)); });
@@ -319,11 +329,12 @@
     idx = Math.max(0, Math.min(STEPS.length - 1, idx + d));
     root.innerHTML = '';
     render();
-    // 焦点不主动搬走（搬走会和 aria-live 打架、还会打断正在滚动的用户），
-    // 靠 polite 区域把新的一步念出来。
-    if (global.UX && UX.announce) {
-      UX.announce('第 ' + (idx + 1) + ' 步，共 ' + STEPS.length + ' 步：' + STEPS[idx].title + '。' + STEPS[idx].lead);
-    }
+    // 【无障碍修正】原先这里调 UX.announce() 播报第 N 步，
+    // 而上方 body 已带 aria-live="polite"，重建后会再念一遍完整内容 ——
+    // 两个 polite 区同时播报，读屏用户听到同一段内容念两遍（第二遍还截断）。
+    // 见 docs/新增模块文案审校.md O-2。
+    // 现在只保留 body 的 aria-live（它播报的是完整内容），此处不再重复播报。
+    // 步骤序号与标题已经写在 body 的可见文本里，会被一起念出来。
   }
 
   function mount(container) {
@@ -353,9 +364,9 @@
       h.setAttribute('tabindex', '-1');
       try { h.focus({ preventScroll: true }); } catch (e) { h.focus(); }
     }
-    if (global.UX && UX.announce) {
-      UX.announce('新手引导：第 1 步，共 3 步。' + STEPS[0].lead + ' 随时可以点跳过。');
-    }
+    // 【无障碍修正】此处原先也调 UX.announce，与 body 的 aria-live 重复播报。
+    // 首次渲染时 body 会被 polite 区念一遍（含步骤序号、lead、要点、note），
+    // 再 announce 一次只会让读屏用户听到两遍。见 docs/新增模块文案审校.md O-2。
     return root;
   }
 

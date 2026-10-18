@@ -157,12 +157,16 @@
     }
 
     // —— 一次都没练：说"哪天来都行"，不说"你没完成" ——
+    // 【文案修正】headline 原为「这周还没开始 —— 哪天来都行，今天来也算」。
+    // 「还没开始」预设了"应该已经开始"，把零定义成缺失状态。
+    // 而产品原则说的是「做 0 项也算完成」，同一件事三处说"完成"、这里说"没开始"。
+    // 这张卡是用户定完目标后看到的第一块内容，第一印象不该是否定句。
     if (done === 0) {
       return {
         tone: 'neutral',
-        headline: '这周还没开始 —— 哪天来都行，今天来也算',
-        detail: '你给自己定的是每周 ' + expected + ' 次。' +
-                '今天做 1 个任务就算今天，练 0 项也完全没有问题。' +
+        headline: '这周随时可以开始 —— 今天来也算',
+        detail: '你给自己定的是每周 ' + expected + ' 次，及格线是 ' + pass + ' 次。' +
+                '今天做 1 个任务就算今天，练 0 项也完全没有问题，这一周照样算数。' +
                 '实在不方便，这周就当休息，下周再说。'
       };
     }
@@ -170,12 +174,15 @@
     // —— 做了一部分：明确"这就算数"，目标只做背景 ——
     // 用及格线而不是 expected 判定：练到及格线就该进"练够了"分支，
     // 不该继续说"剩下的不用赶"。
+    // 【文案修正】detail 原为「剩下的 N 次不用赶」。
+    // "剩下的"即使加了"不用赶"，仍是"还差几次"的同型结构 ——
+    // 先算出欠账再宽容，用户读到的还是欠账。改为不提剩余数量。
     if (done < pass) {
       return {
         tone: 'good',
         headline: '这周已经练了 ' + done + ' 次，这就算数',
-        detail: '你的目标是每周 ' + expected + ' 次，及格线是 ' + pass + ' 次。' +
-                '剩下的不用赶 —— 周末去一次，或者放到下周都行，练得少不会白练。'
+        detail: '你给自己定的目标是每周 ' + expected + ' 次，及格线是 ' + pass + ' 次。' +
+                '这周想再去就再去，不想去也完全没问题 —— 练得少不会白练。'
       };
     }
 
@@ -249,7 +256,7 @@
         ? Goal.passLine(expected) : Math.max(1, expected - 1)) && expected > 0,
       // 0 项也算完成：产品原则的开关位，UI 层想强调"0 项也算"时读它
       zeroCounts: true,
-      label: expected ? (done + ' / ' + expected + ' 次') : '未设定',
+      label: expected ? (done + ' / ' + expected + ' 次') : '还没有定目标',
       ariaLabel: expected
         ? ('本周已练 ' + done + ' 次，你自己定的目标是每周 ' + expected + ' 次')
         : '本周完成度：还没有设定目标'
@@ -316,7 +323,10 @@
     const bits = [];
     if (p.sets > 0) bits.push('完成 ' + p.sets + ' 组');
     if (p.reps > 0) bits.push('共 ' + p.reps + ' 次');
-    if (p.loggedEntries > 0) bits.push('记录 ' + p.loggedEntries + ' 个动作');
+    // 【文案修正】加「本周」限定。
+    // 这张卡和下面的代偿卡（compensation.js）上下相邻，两张卡都有"记录"字样：
+    // 这里是本周的条数，代偿卡是全部历史的留存条数。不加限定同屏会互相打架。
+    if (p.loggedEntries > 0) bits.push('本周记录 ' + p.loggedEntries + ' 个动作');
     if (bits.length) {
       card.appendChild(el('div', 'pg-ok', '<b>这周的实打实的量：</b>' + bits.join(' · ')));
     }

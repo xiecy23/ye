@@ -701,9 +701,20 @@
       const lab = el('label', 'check');
       const cb = el('input');
       cb.type = 'checkbox';
+      // 从已有记录恢复勾选状态，否则刷新页面后勾会丢，
+      // 用户会以为自己没练过而重新勾一次。
+      cb.checked = (st.sessions || []).some(x => x.dayKey === d.key);
       cb.addEventListener('change', () => {
-        Log.logSession(d.key, d.tasks.filter(t => cb.checked).map(t => t.ex.id), 'ok');
-        toast(cb.checked ? '记下了' : '已取消');
+        // 【缺陷修复】原实现无条件调用 logSession，导致取消勾选时也写入一条记录。
+        // 后果：勾了再取消，done 反而增加；反复勾选/取消会让出勤次数虚高，
+        // 直接扭曲 progress 卡与达标判定。见 docs/新增模块文案审校.md F-1。
+        if (!cb.checked) {
+          Log.unlogSession(d.key);
+          toast('已取消');
+          return;
+        }
+        Log.logSession(d.key, d.tasks.filter(() => true).map(t => t.ex.id), 'ok');
+        toast('记下了');
       });
       lab.appendChild(cb);
       lab.appendChild(el('span', null, `第 ${di + 1} 练 · ${esc(d.name)}`));
@@ -964,8 +975,12 @@
     const c = el('div', 'card');
     const sp = el('div', 'specs');
     sp.appendChild(el('span', 'spec', '累计训练 ' + s.totalSessions + ' 次'));
-    sp.appendChild(el('span', 'spec', '近 7 天 ' + s.thisWeek + ' 次'));
-    if (a) sp.appendChild(el('span', 'spec', '出勤率 ' + a.rate + '%'));
+    // 【口径统一】原为「近 7 天 N 次」，但 stats().thisWeek 已改为按
+    // 周一~周日计算，措辞必须跟着改，否则与计划页的「本周 N 次」对不上。
+    sp.appendChild(el('span', 'spec', '本周 ' + s.thisWeek + ' 次'));
+    // 百分比补上下文：它是"自开始以来"的长期统计，和计划页的本周完成度
+    // 不是同一件事，说清楚才不会误读成"这周只完成了 x%"。
+    if (a) sp.appendChild(el('span', 'spec', '累计出勤率 ' + a.rate + '%'));
     c.appendChild(sp);
 
     const alerts = [];
