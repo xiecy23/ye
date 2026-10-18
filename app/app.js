@@ -207,10 +207,13 @@
    * 四档：能练 / 有条件 / 今天不建议 / 红线不能做。
    * 硬红线只有 Safety 那一套，这里不新增。
    * ==================================================================== */
-  const PICK_PART_ORDER = ['legs', 'back', 'chest', 'core', 'glutes', 'shoulders', 'cardio'];
+  // bodyPart 存的是中文（背/腿/核心/有氧…），不是英文 id。
+  // 之前这里写的是英文 key，indexOf 全部返回 -1，
+  // 排序退化成字母序 —— 有氧被排到了第一。
+  const PICK_PART_ORDER = ['背', '胸', '腿', '臀', '核心', '肩', '有氧'];
   const PICK_PART_LABEL = {
-    legs: '腿', back: '背', chest: '胸', core: '核心', glutes: '臀',
-    shoulders: '肩', cardio: '有氧', arms: '手臂'
+    背: '背', 胸: '胸', 腿: '腿', 臀: '臀',
+    核心: '核心', 肩: '肩', 有氧: '有氧', 手臂: '手臂'
   };
 
   function pickedList() {

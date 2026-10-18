@@ -39,30 +39,65 @@
   }
 
   /** 动作在某部位上的适合度打分，用于挑选主项 */
+  /* ---------------------------------------------------------------------
+   * fitScore：给每个动作打"值不值得排进计划"的分
+   *
+   * 【为什么改成规则而不是名单】原来这里是一份 24 条的动作名白名单，
+   * 靠 indexOf 精确匹配。数据扩充后动作名都带了变体后缀
+   * （如「推胸机（对握）」「绳索肩胛后缩（治高低肩专用）」），
+   * 结果 24 条里只有 13 条命中 —— 连「治高低肩专用」这种最对症的
+   * 纠正动作都排不进计划。
+   *
+   * 名单的根本问题是：改数据就失效，而且失效时不报错。
+   * 现在改成语义规则，命中的是"这台机器/这个动作是干什么的"，
+   * 不再依赖名字怎么写。
+   * ------------------------------------------------------------------- */
   function fitScore(ex, part) {
     const p = partOf(ex);
     if (p !== part) return -1;
     let s = 10;
-    // 优先级白名单：优先选"教上斜方肌别抢活"和"低 DOMS / 低抽筋"的动作
-    const PRIORITY = [
-      '高位下拉（宽握对握）', '坐姿划船', '胸部支撑划船', '高位下拉（肩胛引体上拉）',
-      '绳索肩胛后缩', '低位上斜推胸机', '推胸机', '上斜推胸机',
-      '腿屈伸', '俯卧腿弯举', '髋外展', '坐姿腿屈曲', '髋内收', '提踵',
-      '卷腹机', '平板支撑', '坐姿腹肌旋转卷腹机', '死虫式', '鸟狗式',
-      '椭圆机', '跑步机', '固定单车',
-      '肩后束（反飞鸟）', '直臂后伸'
-    ];
-    const idx = PRIORITY.indexOf(ex.name);
-    if (idx >= 0) s += 50 - idx;
+    const nm = ex.name || '';
 
-    // 风险惩罚：新手阶段优先低风险动作
+    // —— 第 1 层：纠正类动作。直接加分，且权重最高。
+    // 「肩胛引体」「肩胛下沉」「治高低肩」这类动作是针对左高右低专门设计的，
+    // 优先级应该高于任何普通动作。名字带「治」「专用」也是信号。
+    const corrective = /肩胛|治|专用|矫正|后缩/.test(nm);
+    if (corrective) s += 40;
+
+    // —— 第 2 层：核心机台（按机器 id，不依赖动作名）
+    // 用 machine 而不是 name，因为同一台机器会有多个握法变体，
+    // 变体之间应该平等，不该只排其中一个。
+    const CORE_MACHINE = [
+      // 拉：教上斜方肌别抢活的一律优先
+      'high_pulldown', 'seated_row', 'wide_grip_seated_row_machine',
+      'chest_supported_row', 'low_row_machine', 'upright_row', 'cable_machine',
+      // 推：低位/上斜，避免肩峰撞击
+      'incline_chest_press', 'chest_press_machine', 'reverse_fly',
+      // 腿：新手阶段选低 DOMS 的
+      'leg_extension', 'seated_leg_curl', 'lying_leg_curl', 'leg_curl_45_degree',
+      // 髋：稳定肌群
+      'hip_abduction', 'hip_adduction', 'calf_raise_machine', 'seated_calf_raise',
+      // 核心
+      'ab_crunch_machine', 'ab_twist_machine', 'kneeling_ab_crunch_machine',
+      'anti_rotation_station'
+    ];
+    const mi = CORE_MACHINE.indexOf(ex.machine);
+    if (mi >= 0) s += 30 - Math.min(mi, 20);
+
+    // —— 第 3 层：器械类型偏好
+    // 固定器械 > 自重 > 有氧。新手阶段有氧是补充不是主项。
+    if (ex.loadStyle === 'selector' || ex.loadStyle === 'plate_per_side') s += 8;
+    if (ex.machine === 'yoga_mat_area' || ex.loadStyle === 'bodyweight') s += 4;
+    // bodyPart 存的是中文 '有氧'，不是 'cardio'。原来写英文导致这个判断
+    // 永远不成立，有氧动作拿不到应有的加分。
+    if (ex.bodyPart === '有氧') s += 2;
+
+    // —— 第 4 层：风险惩罚（新手阶段优先低风险）
     const W = { low: 0, mid: 1, high: 2 };
     s -= (W[ex.domsRisk] || 0) * 6;
     s -= (W[ex.crampRisk] || 0) * 5;
     s -= (W[ex.trapRisk] || 0) * 8;      // 上斜方肌风险权重最高
 
-    // 高位下拉的肩胛引体版本是纠正动作，额外加分
-    if (/肩胛/.test(ex.name)) s += 20;
     return s;
   }
 
