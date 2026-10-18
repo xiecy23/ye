@@ -35,7 +35,8 @@ const ASSETS = [
   './app/onboarding.js',
   './app/progress.js',
   './app/weekpack.js',
-  './app/compensation.js'
+  './app/compensation.js',
+  './app/pick.js'
 ];
 
 self.addEventListener('install', e => {

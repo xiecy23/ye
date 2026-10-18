@@ -101,6 +101,7 @@
     if (page === 'plan') renderPlan();
     if (page === 'goal') renderGoal();
     if (page === 'kit') renderTodayTour();
+    if (page === 'kit') renderPick();
     if (page === 'react') renderLog();
     if (page === 'react') renderAssess();
     if (page === 'react') renderEvidence();
@@ -197,6 +198,206 @@
       n.appendChild(el('div', 'hint mt', '容易和它搞混：' + m.lookalike.map(esc).join('、')));
     }
     return n;
+  }
+
+  /* ====================================================================
+   * 自选动作 + 合理性判定
+   *
+   * 定位：用户自己挑，系统给判断。不是审批，是解释。
+   * 四档：能练 / 有条件 / 今天不建议 / 红线不能做。
+   * 硬红线只有 Safety 那一套，这里不新增。
+   * ==================================================================== */
+  const PICK_PART_ORDER = ['legs', 'back', 'chest', 'core', 'glutes', 'shoulders', 'cardio'];
+  const PICK_PART_LABEL = {
+    legs: '腿', back: '背', chest: '胸', core: '核心', glutes: '臀',
+    shoulders: '肩', cardio: '有氧', arms: '手臂'
+  };
+
+  function pickedList() {
+    try {
+      const raw = localStorage.getItem('fitcoach.picked');
+      const v = raw ? JSON.parse(raw) : [];
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+  function setPicked(ids) {
+    try { localStorage.setItem('fitcoach.picked', JSON.stringify(ids)); } catch (e) { /* 无痕模式，忽略 */ }
+  }
+
+  /** 单个动作的判定卡 */
+  function pickVerdictCard(r) {
+    const c = el('div', 'card ' + ({ ok: 'ok', caution: 'warn', avoid: 'danger', stop: 'danger' }[r.level] || ''));
+
+    const top = el('div');
+    top.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+    top.appendChild(el('b', null, esc(r.exercise.name)));
+    top.appendChild(el('span', 'badge ' + ({ ok: 'ok', caution: 'warn', avoid: 'danger', stop: 'danger' }[r.level] || ''),
+      r.levelLabel));
+    c.appendChild(top);
+
+    c.appendChild(el('div', 'hint mt', esc(r.headline)));
+    if (r.detail) c.appendChild(el('p', null, esc(r.detail)));
+
+    // 红线理由
+    if (r.blockers && r.blockers.length) {
+      const ul = el('ul');
+      ul.style.cssText = 'margin:8px 0 0;padding-left:18px;font-size:13px';
+      r.blockers.forEach(b => {
+        const li = el('li', null, esc(b));
+        li.style.marginBottom = '4px';
+        ul.appendChild(li);
+      });
+      c.appendChild(ul);
+    }
+
+    // 个人档案关联 —— 这块是这个功能真正的价值：解释为什么"对你"不合适
+    if (r.historyNotes && r.historyNotes.length) {
+      const d = el('div', 'mt');
+      d.style.cssText = 'background:var(--surface);border-left:3px solid var(--accent);padding:9px 11px;border-radius:8px';
+      d.appendChild(el('div', null, '<b>和你的情况有关</b>'));
+      const ul = el('ul');
+      ul.style.cssText = 'margin:6px 0 0;padding-left:18px;font-size:13px';
+      r.historyNotes.forEach(h => {
+        const li = el('li', null, esc(h));
+        li.style.marginBottom = '4px';
+        ul.appendChild(li);
+      });
+      d.appendChild(ul);
+      c.appendChild(d);
+    }
+
+    // 条件
+    if (r.conditions && r.conditions.length) {
+      const d = el('div', 'mt');
+      d.style.cssText = 'background:var(--warn-bg);border-left:3px solid var(--warn);padding:9px 11px;border-radius:8px';
+      d.appendChild(el('div', null, '<b>' + (r.ok ? '要这么做' : '想练的话') + '</b>'));
+      const ul = el('ul');
+      ul.style.cssText = 'margin:6px 0 0;padding-left:18px;font-size:13px';
+      r.conditions.forEach(h => {
+        const li = el('li', null, esc(h));
+        li.style.marginBottom = '4px';
+        ul.appendChild(li);
+      });
+      d.appendChild(ul);
+      c.appendChild(d);
+    }
+
+    // 停止信号
+    if (r.notes && r.notes.length && r.notes[0]) {
+      c.appendChild(el('div', 'hint mt', '<b>停下来：</b>' + esc(r.notes[0])));
+    }
+
+    // 记录一次
+    const acts = el('div', 'mt');
+    const b1 = el('button', 'btn sm', '这个我练了，记一次');
+    b1.onclick = () => {
+      Log.logExercise(r.exercise.id, { kg: 0, sets: 0, reps: 0 });
+      toast('记下了。做完可以在任务卡上补重量和次数。');
+      renderPick();
+    };
+    acts.appendChild(b1);
+
+    const b2 = el('button', 'btn sm ghost', '移出清单');
+    b2.onclick = () => {
+      setPicked(pickedList().filter(x => x !== r.exercise.id));
+      renderPick();
+    };
+    acts.appendChild(b2);
+    c.appendChild(acts);
+
+    return c;
+  }
+
+  function renderPick() {
+    const box = $('#pickBox');
+    if (!box) return;
+    box.innerHTML = '';
+
+    if (typeof Pick === 'undefined') {
+      box.appendChild(el('div', 'hint', '自选模块没加载。'));
+      return;
+    }
+
+    /* ---- 已选清单 + 判定 ---- */
+    const ids = pickedList();
+    if (ids.length) {
+      const set = Pick.judgeSet(ids);
+      const card = el('div', 'card accent');
+      card.appendChild(el('h3', null, '你挑了 ' + set.results.length + ' 个'));
+      card.appendChild(el('p', 'mb0', esc(set.summary)));
+
+      const counts = el('div', 'specs mt');
+      if (set.counts.ok) counts.appendChild(el('span', 'spec', '能练 ' + set.counts.ok));
+      if (set.counts.caution) counts.appendChild(el('span', 'spec', '有条件 ' + set.counts.caution));
+      if (set.counts.avoid) counts.appendChild(el('span', 'spec', '不建议 ' + set.counts.avoid));
+      if (set.counts.stop) counts.appendChild(el('span', 'spec danger', '红线 ' + set.counts.stop));
+      card.appendChild(counts);
+
+      const clr = el('button', 'btn sm ghost mt', '清空');
+      clr.onclick = () => { setPicked([]); renderPick(); };
+      card.appendChild(clr);
+      box.appendChild(card);
+
+      set.results.forEach(r => {
+        const wrapper = el('div');
+        wrapper.style.marginBottom = '10px';
+        wrapper.appendChild(pickVerdictCard(r));
+        box.appendChild(wrapper);
+      });
+    }
+
+    /* ---- 选择器：按部位分组，避免 88 个动作平铺 ---- */
+    const usable = (EXERCISES || []).filter(e => !e._banned);
+    const groups = {};
+    usable.forEach(e => {
+      const p = e.bodyPart || 'other';
+      (groups[p] || (groups[p] = [])).push(e);
+    });
+
+    const sel = el('details', 'more');
+    if (!ids.length) sel.setAttribute('open', '');
+    sel.appendChild(el('summary', null, ids.length ? '再加一个' : '挑一个动作'));
+    const inner = el('div', 'inner');
+
+    const keys = Object.keys(groups).sort((a, b) => {
+      const ia = PICK_PART_ORDER.indexOf(a), ib = PICK_PART_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    keys.forEach(p => {
+      const list = groups[p].sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+      inner.appendChild(el('div', 'grouplabel', PICK_PART_LABEL[p] || p));
+      const opts = el('div', 'opts');
+      list.forEach(e => {
+        const on = ids.indexOf(e.id) >= 0;
+        const b = el('button', 'opt' + (on ? ' on' : ''));
+        const label = el('span', 't', esc(e.name));
+        b.appendChild(label);
+        const r = Pick.judge(e.id);
+        b.appendChild(el('span', 'd',
+          r.level === 'ok' ? '今天就能做'
+            : r.level === 'caution' ? '有条件：' + (r.conditions[0] || '')
+            : r.level === 'avoid' ? (r.blockers[0] || '今天不建议')
+            : '红线，不能做'));
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.onclick = () => {
+          const cur = pickedList();
+          const next = cur.indexOf(e.id) >= 0
+            ? cur.filter(x => x !== e.id)
+            : cur.concat([e.id]);
+          setPicked(next);
+          renderPick();
+        };
+        opts.appendChild(b);
+      });
+      inner.appendChild(opts);
+    });
+
+    sel.appendChild(inner);
+    box.appendChild(sel);
+
+    box.appendChild(el('div', 'hint center mt',
+      '系统的判断只解释，不拦你。红线那几条是真的不行，其余的你自己决定。'));
   }
 
   function renderKitAll() {
